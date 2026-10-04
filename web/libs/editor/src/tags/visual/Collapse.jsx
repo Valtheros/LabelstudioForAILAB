@@ -10,6 +10,7 @@ import ProcessAttrsMixin from "../../mixins/ProcessAttrs";
 import { isStarterCloudPlan } from "@humansignal/core";
 import { FF_BULK_ANNOTATION, isFF } from "../../utils/feature-flags";
 import { guidGenerator } from "../../utils/unique";
+import styles from "./Collapse.module.scss";
 
 const { Panel } = Collapse;
 
@@ -153,7 +154,7 @@ const HtxCollapse = observer(({ item }) => {
     : defaultActiveKeys;
 
   return (
-    <Collapse bordered={item.bordered} accordion={item.accordion} defaultActiveKey={finalActiveKeys}>
+    <Collapse className={styles.collapse} bordered={item.bordered} accordion={item.accordion} defaultActiveKey={finalActiveKeys}>
       {visibleChildren.map((c, index) => (
         <Panel key={`panel-${c.value}`} header={c._value || c.value || `Panel ${index + 1}`} forceRender>
           {Tree.renderChildren(c, item.annotation)}

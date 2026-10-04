@@ -16,12 +16,13 @@ import { ExportPage } from "../ExportPage/ExportPage";
 import { APIConfig } from "./api-config";
 
 import "./DataManager.scss";
+import { ImportStatus } from './ImportStatus';
 
 const loadDependencies = () => [import("@humansignal/datamanager"), import("@humansignal/editor")];
 
 const initializeDataManager = async (root, props, params) => {
   if (!window.LabelStudio) throw Error("Label Studio Frontend doesn't exist on the page");
-  if (!root && root.dataset.dmInitialized) return;
+  if (!root || root.dataset.dmInitialized) return;
 
   root.dataset.dmInitialized = true;
 
@@ -132,7 +133,7 @@ export const DataManagerPage = ({ ...props }) => {
     });
 
     dataManager.on("exportClicked", () => {
-      history.push(buildLink("/data/export", { id: params?.id ?? project?.id }));
+      window.location.assign(`/ailab/projects/${params?.id ?? project?.id}/send/`);
     });
 
     dataManager.on("error", (response) => {
@@ -222,6 +223,7 @@ export const DataManagerPage = ({ ...props }) => {
     </div>
   ) : (
     <>
+      <ImportStatus projectId={projectId} />
       {loading && (
         <div className="flex-1 absolute inset-0 flex items-center justify-center">
           <Spinner size={64} />

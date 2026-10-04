@@ -1,0 +1,22 @@
+FROM node:22-alpine AS web
+WORKDIR /label-studio/web
+ENV BUILD_NO_SERVER=true BUILD_NO_HASH=true BUILD_NO_CHUNKS=true BUILD_MODULE=true NX_DAEMON=false NX_ISOLATE_PLUGINS=false NODE_OPTIONS=--max-old-space-size=4096 CYPRESS_INSTALL_BINARY=0
+RUN apk add --no-cache build-base pkgconfig cairo-dev giflib-dev libjpeg-turbo-dev libpng-dev pango-dev git python3
+COPY web/package.json web/yarn.lock ./
+COPY web/tools ./tools
+RUN yarn install --frozen-lockfile --ignore-engines --non-interactive --production=false
+COPY web/ ./
+COPY pyproject.toml ../pyproject.toml
+RUN yarn run build
+
+FROM heartexlabs/label-studio:1.23.0@sha256:aa461572e8f9d86a1bf9520c1db620204e86160fd2f80dd7e9d40ac84a8828ea
+USER root
+COPY --chown=1001:0 --from=web /label-studio/web/dist /label-studio/web/dist
+COPY --chown=1001:0 label_studio/ailab /label-studio/label_studio/ailab
+COPY --chown=1001:0 label_studio/projects/mixins.py /label-studio/label_studio/projects/mixins.py
+COPY --chown=1001:0 label_studio/templates/base.html /label-studio/label_studio/templates/base.html
+ENV DJANGO_SETTINGS_MODULE=ailab.settings SENTRY_DSN="" FRONTEND_SENTRY_DSN="" TMPDIR=/label-studio/data/tmp
+USER 1001
+WORKDIR /label-studio/label_studio
+ENTRYPOINT ["/label-studio/deploy/docker-entrypoint.sh"]
+CMD ["python", "-m", "ailab.start"]

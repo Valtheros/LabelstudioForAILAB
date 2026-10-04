@@ -24,7 +24,26 @@
 
   &__content {
     flex: 1;
+    min-width: 0;
     overflow: auto;
     padding: 2rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .sidebar-menu {
+    flex-direction: column;
+
+    &__navigation {
+      width: 100%;
+
+      .main-menu {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+      }
+    }
+
+    &__content { padding: 1rem; }
   }
 }

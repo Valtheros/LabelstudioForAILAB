@@ -290,25 +290,12 @@ export const EmptyState: FC<EmptyStateProps> = ({
   return renderEmptyStateLayout({
     icon: <IconUpload />,
     title: "Import data to get your project started",
-    description: "Connect your cloud storage or upload files from your computer",
+    description: "Upload images or an image ZIP",
     testId: "empty-state-label",
     ariaLabelledBy: "dm-empty-title",
     ariaDescribedBy: "dm-empty-desc",
-    additionalContent: <StorageProviderIcons />,
     actions: (
       <>
-        {permissions.can(ABILITY.can_manage_storage) && (
-          <Button
-            variant="primary"
-            look="filled"
-            className="flex-1"
-            onClick={onOpenSourceStorageModal}
-            data-testid="dm-connect-source-storage-button"
-          >
-            Connect Cloud Storage
-          </Button>
-        )}
-
         {isImportEnabled && (
           <Button
             variant="primary"

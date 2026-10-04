@@ -288,3 +288,17 @@
     padding: .625rem 1rem;
   }
 }
+
+@media (max-width: 767px) {
+  .tabs-dm__list {
+    overflow-x: auto;
+    max-width: 100%;
+  }
+
+  .tabs-dm__droppable {
+    overflow: visible;
+    flex-shrink: 0;
+  }
+
+  .tabs-dm-content__draggable { width: 110px; }
+}

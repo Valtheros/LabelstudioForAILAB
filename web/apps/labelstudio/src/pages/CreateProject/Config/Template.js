@@ -111,11 +111,23 @@ export class Template {
       control.appendChild($label);
     });
 
+    this.syncSegmentationLabels(control);
     this.render();
   }
 
+  syncSegmentationLabels(control) {
+    if (!["PolygonLabels", "BrushLabels"].includes(control.tagName)) return;
+    for (const target of this.controls) {
+      if (target !== control && ["PolygonLabels", "BrushLabels"].includes(target.tagName) && target.getAttribute("toName") === control.getAttribute("toName")) {
+        target.replaceChildren(...Array.from(control.children, label => label.cloneNode(true)));
+      }
+    }
+  }
+
   removeLabel($label) {
-    $label.parentNode.removeChild($label);
+    const control = $label.parentNode;
+    control.removeChild($label);
+    this.syncSegmentationLabels(control);
     this.render();
   }
 
@@ -123,6 +135,7 @@ export class Template {
     for (const attr of Object.keys(attrs)) {
       $label.setAttribute(attr, attrs[attr]);
     }
+    this.syncSegmentationLabels($label.parentNode);
     this.render();
   }
 }

@@ -4,3 +4,19 @@
   background-color: var(--color-neutral-background);
   justify-content: space-between;
 }
+
+@media (max-width: 1023px) {
+  .tab-panel {
+    flex-direction: column;
+    gap: 12px;
+
+    > .space-dm {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    button { min-height: 44px; }
+  }
+}

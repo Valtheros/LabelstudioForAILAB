@@ -1,0 +1,19 @@
+.collapse:global(.ant-collapse) {
+  background: var(--color-neutral-background);
+  color: var(--color-neutral-content);
+  border-color: var(--color-neutral-border);
+
+  > :global(.ant-collapse-item) {
+    border-color: var(--color-neutral-border);
+
+    > :global(.ant-collapse-header) {
+      color: var(--color-neutral-content);
+    }
+
+    > :global(.ant-collapse-content) {
+      background: var(--color-neutral-background);
+      color: var(--color-neutral-content);
+      border-color: var(--color-neutral-border);
+    }
+  }
+}

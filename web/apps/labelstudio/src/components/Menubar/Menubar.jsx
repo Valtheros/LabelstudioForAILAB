@@ -5,7 +5,6 @@ import {
   IconFolder,
   IconHome,
   IconHotkeys,
-  IconPeople,
   IconPersonInCircle,
   IconPin,
   IconTerminal,
@@ -19,7 +18,7 @@ import { useConfig } from "../../providers/ConfigProvider";
 import { useContextComponent, useFixedLocation } from "../../providers/RoutesProvider";
 import { useAuth } from "@humansignal/core/providers/AuthProvider";
 import { cn } from "../../utils/bem";
-import { absoluteURL, isDefined } from "../../utils/helpers";
+import { absoluteURL } from "../../utils/helpers";
 import { Breadcrumbs } from "../Breadcrumbs/Breadcrumbs";
 import { Dropdown } from "@humansignal/ui";
 import { Hamburger } from "../Hamburger/Hamburger";
@@ -29,7 +28,6 @@ import "./Menubar.scss";
 import "./MenuContent.scss";
 import "./MenuSidebar.scss";
 import { FF_HOMEPAGE } from "../../utils/feature-flags";
-import { pages } from "@humansignal/app-common";
 import { isFF } from "../../utils/feature-flags";
 import { ff } from "@humansignal/core";
 import { openHotkeyHelp } from "@humansignal/app-common/pages/AccountSettings/sections/Hotkeys/Help";
@@ -73,7 +71,6 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
   const sidebarClass = cn("sidebar");
   const contentClass = cn("content-wrapper");
   const contextItem = menubarClass.elem("context-item");
-  const showNewsletterDot = !isDefined(user?.allow_newsletters);
 
   const sidebarPin = useCallback(
     (e) => {
@@ -184,28 +181,16 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
                 <Menu.Item
                   icon={<IconPersonInCircle />}
                   label="Account &amp; Settings"
-                  href={pages.AccountSettingsPage.path}
+                  href="/ailab/account/"
+                  data-external
                 />
                 {/* <Menu.Item label="Dark Mode"/> */}
                 <Menu.Item icon={<IconDoor />} label="Log Out" href={absoluteURL("/logout")} data-external />
-                {showNewsletterDot && (
-                  <>
-                    <Menu.Divider />
-                    <Menu.Item
-                      className={cn("newsletter-menu-item").toClassName()}
-                      href={pages.AccountSettingsPage.path}
-                    >
-                      <span>Please check new notification settings in the Account & Settings page</span>
-                      <span className={cn("newsletter-menu-badge").toClassName()} />
-                    </Menu.Item>
-                  </>
-                )}
               </Menu>
             }
           >
             <div title={user?.email} className={menubarClass.elem("user").toClassName()}>
               <Userpic user={user} isInProgress={isLoading} />
-              {showNewsletterDot && <div className={menubarClass.elem("userpic-badge").toClassName()} />}
             </div>
           </Dropdown.Trigger>
         </div>
@@ -225,7 +210,6 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
               <Menu>
                 {isFF(FF_HOMEPAGE) && <Menu.Item label="Home" to="/" icon={<IconHome />} data-external exact />}
                 <Menu.Item label="Projects" to="/projects" icon={<IconFolder />} data-external exact />
-                <Menu.Item label="Organization" to="/organization" icon={<IconPeople />} data-external exact />
 
                 <Menu.Spacer />
 

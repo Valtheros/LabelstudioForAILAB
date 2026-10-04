@@ -75,8 +75,10 @@ class ProjectMixin:
         """
         Dummy stub for has_permission
         """
-        user.project = self  # link for activity log
-        return True
+        # AILAB modification: membership alone must not authorize a private workspace.
+        from ailab.security import owns
+        user.project = self
+        return owns(user, self)
 
     def _can_use_overlap(self):
         """

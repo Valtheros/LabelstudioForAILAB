@@ -95,6 +95,7 @@ const Label = ({ label, template, color }) => {
         <label style={{ background: color }}>
           <Input
             type="color"
+            aria-label={`Color for ${value}`}
             className={configClass.elem("label-color").toClassName()}
             value={colorNames[color] || color}
             onChange={(e) => template.changeLabel(label, { background: e.target.value })}
@@ -108,8 +109,9 @@ const Label = ({ label, template, color }) => {
         size="smaller"
         variant="negative"
         onClick={() => template.removeLabel(label)}
-        aria-label="delete label"
-        className="hidden !p-0 z-10 absolute right-0 [&_span]:!p-0 group-hover:inline-flex"
+        aria-label={`Delete label ${value}`}
+        title={`Delete label ${value}`}
+        className="!p-0 z-10 [&_span]:!p-0"
         leading={<IconTrash className="w-4 h-4 fill-[currentColor]" />}
       />
     </li>
@@ -129,7 +131,7 @@ const ConfigureControl = ({ control, template }) => {
     refLabels.current.value = "";
   };
   const onKeyPress = (e) => {
-    if (e.key === "Enter" && e.ctrlKey) {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       onAddLabels();
     }
@@ -146,7 +148,8 @@ const ConfigureControl = ({ control, template }) => {
           cols="50"
           rows="5"
           ref={refLabels}
-          onKeyPress={onKeyPress}
+          aria-label={tagname === "Choices" ? "New choices" : "New label names"}
+          onKeyDown={onKeyPress}
           className="lsf-textarea-ls p-2 px-3"
         />
         <Button type="button" size="small" look="outlined" onClick={onAddLabels} aria-label="Add labels">
@@ -393,8 +396,13 @@ const Configurator = ({
   const [visualLoaded, loadVisual] = React.useState(configure === "visual");
   const [waiting, setWaiting] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  const [saveError, setSaveError] = React.useState("");
   const containerRef = useRef(null);
   const [containerWidth, setContainerWidth] = useState(undefined);
+  const stacked = containerWidth !== undefined && containerWidth < 916;
+  const labelControls = template.controls.filter((control, index, controls) =>
+    !["PolygonLabels", "BrushLabels"].includes(control.tagName) || !controls.slice(0, index).some(previous =>
+      ["PolygonLabels", "BrushLabels"].includes(previous.tagName) && previous.getAttribute("toName") === control.getAttribute("toName")));
 
   // Resizer hook
   const { editorWidthPixels, setEditorWidthPixels, constraints } = useConfigResizer({
@@ -502,16 +510,20 @@ const Configurator = ({
   }, [config, isFeatureEnabled]);
 
   React.useEffect(() => {
+    const controller = new AbortController();
     const validate = async () => {
       if (!configToCheck) return;
 
       setLoading(true);
 
       const validation = await api.callApi("validateConfig", {
+        signal: controller.signal,
         params: { pk: project.id },
         body: { label_config: configToCheck },
         errorFilter: () => true,
       });
+
+      if (controller.signal.aborted) return;
 
       if (validation?.error) {
         setError(validation.response);
@@ -523,10 +535,13 @@ const Configurator = ({
       onValidate?.(validation);
 
       const sample = await api.callApi("createSampleTask", {
+        signal: controller.signal,
         params: { pk: project.id },
         body: { label_config: configToCheck },
         errorFilter: () => true,
       });
+
+      if (controller.signal.aborted) return;
 
       setLoading(false);
       if (sample && !sample.error) {
@@ -541,6 +556,7 @@ const Configurator = ({
       }
     };
     validate();
+    return () => controller.abort();
   }, [configToCheck]);
 
   // code should be reloaded on every render because of uncontrolled codemirror
@@ -567,19 +583,27 @@ const Configurator = ({
   );
 
   const onSave = async () => {
-    setError(null);
+    if (waiting) return;
+    setSaveError("");
     setWaiting(true);
-    const res = await onSaveClick();
-
-    setWaiting(false);
-
-    if (res === true) {
-      setSaved(true);
-      setTimeout(() => setSaved(false), 1500);
-    } else {
-      setError(res);
+    try {
+      const res = await onSaveClick();
+      if (res === true) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 1500);
+      } else {
+        setSaveError("Could not save configuration. Your changes are still here. Please retry.");
+        setError(res || { detail: "Could not save configuration. Please retry." });
+      }
+      return res;
+    } catch {
+      const error = { detail: "Could not save configuration. Your changes are still here. Please retry." };
+      setSaveError(error.detail);
+      setError(error);
+      return error;
+    } finally {
+      setWaiting(false);
     }
-    return res;
   };
 
   function completeAfter(cm, pred) {
@@ -624,8 +648,9 @@ const Configurator = ({
       <div
         className={configClass.elem("container").toClassName()}
         ref={containerRef}
+        data-stacked={stacked}
         style={{
-          gridTemplateColumns: `${editorWidthPixels}px minmax(516px, 1fr)`,
+          gridTemplateColumns: stacked ? "minmax(0, 1fr)" : `${editorWidthPixels}px minmax(516px, 1fr)`,
         }}
       >
         <div className="flex flex-col">
@@ -682,13 +707,14 @@ const Configurator = ({
               <div className={cnm(configClass.elem("visual").toClassName(), configure !== "visual" ? "!hidden" : "")}>
                 {isEmptyConfig(config) && <EmptyConfigPlaceholder />}
                 <ConfigureColumns columns={columns} project={project} template={template} />
-                {template.controls.map((control) => (
+                {labelControls.map((control) => (
                   <ConfigureControl control={control} template={template} key={control.getAttribute("name")} />
                 ))}
                 <ConfigureSettings template={template} />
               </div>
             )}
           </div>
+          {saveError && <p role="alert" className="text-negative-content">{saveError}</p>}
           {disableSaveButton !== true && onSaveClick && (
             <Form.Actions size="small" extra={configure === "code" && extra} valid>
               {saved && (
@@ -706,13 +732,13 @@ const Configurator = ({
           )}
         </div>
         <div className="relative">
-          <EditorResizer
+          {!stacked && <EditorResizer
             containerRef={containerRef}
             editorWidthPixels={editorWidthPixels}
             onResize={setEditorWidthPixels}
             constraints={constraints}
             disabled={constraints.minEditorWidth >= constraints.maxEditorWidth}
-          />
+          />}
           <AdaptivePreview
             config={configToDisplay}
             data={data}

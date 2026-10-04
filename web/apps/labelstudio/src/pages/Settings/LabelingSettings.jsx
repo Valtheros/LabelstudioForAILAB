@@ -7,7 +7,7 @@ import { isEmptyString } from "../../utils/helpers";
 import { ConfigPage } from "../CreateProject/Config/Config";
 
 export const LabelingSettings = () => {
-  const { project, fetchProject, updateProject } = useProject();
+  const { project, updateProject } = useProject();
   const [config, setConfig] = useState("");
   const [essentialDataChanged, setEssentialDataChanged] = useState(false);
   const hasChanges = isFF(FF_UNSAVED_CHANGES) && config !== project.label_config;
@@ -29,7 +29,7 @@ export const LabelingSettings = () => {
           }
 
           //error handling
-          return res.response;
+          return res?.response ?? { detail: "Could not save configuration. Please retry." };
         }
       : async () => {
           const res = await api.callApi("updateProjectRaw", {
@@ -41,16 +41,13 @@ export const LabelingSettings = () => {
             },
           });
 
-          if (res.ok) {
+          if (res?.ok) {
             return true;
           }
 
-          const error = await res.json();
-
-          fetchProject();
-          return error;
+          return res ? await res.json() : { detail: "Could not save configuration. Please retry." };
         },
-    [project, config],
+    [project, config, api, updateProject],
   );
 
   const projectAlreadySetUp = useMemo(() => {

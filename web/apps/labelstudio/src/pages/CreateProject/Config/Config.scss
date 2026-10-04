@@ -54,6 +54,24 @@ $scroll-width: 5px;
   }
 }
 
+.wizard .configure__container[data-stacked="true"] > div:first-child {
+  height: auto;
+  max-height: none;
+}
+
+.wizard .configure__container[data-stacked="true"] > div:last-child {
+  min-height: 400px;
+}
+
+.wizard .configure__container[data-stacked="true"] {
+  .configure__preview,
+  .configure__preview-container {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+}
+
 // Apply max-height only in Create Project wizard context (not in Labeling Settings)
 .create-project .wizard .configure__container>div {
   --create-project-header-height: 73px;
@@ -448,6 +466,13 @@ $scroll-width: 5px;
     align-items: stretch;
     justify-content: space-between;
     position: relative;
+    min-height: 44px;
+
+    > button {
+      flex-shrink: 0;
+      min-width: 44px;
+      min-height: 44px;
+    }
 
     &:not(:first-child) {
       margin-top: 8px;
@@ -470,6 +495,7 @@ $scroll-width: 5px;
       &::before {
         content: "";
         position: absolute;
+        top: 0;
         width: 100%;
         height: 100%;
         background: inherit;
@@ -481,6 +507,7 @@ $scroll-width: 5px;
 
       &::after {
         position: absolute;
+        top: 0;
         left: -4px;
         width: 4px;
         content: "";
@@ -538,10 +565,25 @@ $scroll-width: 5px;
   }
 
   .configure__label-text {
+    align-items: center;
     padding: 0 8px;
     overflow-x: hidden;
     word-break: break-word;
     color: var(--color-neutral-content);
+  }
+}
+
+@media (max-width: 767px) {
+  .sidebar-menu__content > .wizard {
+    margin: -16px;
+    height: calc(100% + 32px);
+  }
+
+  .templates-list {
+    grid-template: auto minmax(0, 1fr) auto / minmax(0, 1fr);
+
+    footer { grid-column: 1; }
+    main ul { grid-template-columns: minmax(0, 1fr); }
   }
 }
 

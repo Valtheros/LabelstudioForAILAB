@@ -25,7 +25,7 @@
   border: 1px solid var(--color-neutral-border);
   border-radius: 0.5rem;
   padding: 1.5rem;
-  width: 40rem;
+  width: min(40rem, 100%);
   color: var(--color-neutral-content-subtle);
 
 

@@ -323,10 +323,12 @@ export class APIProxy<T extends {}> {
   getDefaultHeaders(method: RequestMethod) {
     switch (method) {
       case "POST":
+      case "PUT":
       case "PATCH":
       case "DELETE": {
         return {
           "Content-Type": "application/json",
+          "X-CSRFToken": document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? "",
         };
       }
       default:
