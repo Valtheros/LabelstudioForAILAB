@@ -5,7 +5,8 @@ import os
 import uuid
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.test import Client, TestCase, override_settings
+from django.urls import get_script_prefix, reverse, set_script_prefix
 from PIL import Image
 
 from .models import Identity, Workspace, ImageRecord
@@ -15,7 +16,7 @@ class WorkspaceIsolationTests(TestCase):
     def test_account_has_navigation_back_to_label_projects(self):
         self.client.force_login(self.users['alice'])
         response = self.client.get('/ailab/account/')
-        self.assertContains(response, 'href="/projects/"')
+        self.assertContains(response, f'href="{reverse("projects:project-index")}"')
         self.assertContains(response, 'Change password')
 
     def test_send_opens_ailab_preview_without_registering_a_dataset(self):
@@ -190,6 +191,110 @@ class WorkspaceIsolationTests(TestCase):
         client.force_login(self.users['alice'])
         response = client.post(f'/api/tasks/{image.task_id}/annotations/', '{"result": []}', content_type='application/json')
         self.assertEqual(response.status_code, 403)
+
+    @override_settings(FORCE_SCRIPT_NAME='/label-studio', SESSION_COOKIE_SECURE=True,
+                       CSRF_COOKIE_SECURE=True, SESSION_COOKIE_PATH='/label-studio/',
+                       CSRF_COOKIE_PATH='/label-studio/',
+                       CSRF_TRUSTED_ORIGINS=['https://ai-lab.cs.psu.ac.th'])
+    def test_subpath_https_login_account_csrf_and_ownership(self):
+        from urllib.parse import parse_qs, urlsplit
+        own = self.upload('alice')
+        other = self.upload('bob')
+        self.addCleanup(set_script_prefix, get_script_prefix())
+        set_script_prefix('/label-studio/')
+        client = Client(enforce_csrf_checks=True, SCRIPT_NAME='/label-studio',
+                        HTTP_HOST='testserver', HTTP_X_FORWARDED_PROTO='https')
+        response = client.get('/projects/?page=2')
+        redirect = urlsplit(response['Location'])
+        self.assertEqual(redirect.path, '/label-studio/user/login/')
+        self.assertEqual(parse_qs(redirect.query)['next'], ['/label-studio/projects/?page=2'])
+        client.force_login(self.users['alice'])
+        response = client.get('/ailab/account/')
+        self.assertContains(response, 'href="/label-studio/projects/"')
+        self.assertTrue(response.cookies['ailab_label_csrf']['secure'])
+        self.assertEqual(response.cookies['ailab_label_csrf']['path'], '/label-studio/')
+        self.assertEqual(client.get('/user/account').url, '/label-studio/ailab/account/')
+        templates = client.get('/api/templates/').json()['templates']
+        self.assertTrue(all(t['image'].startswith('/label-studio/static/') for t in templates))
+        self.assertEqual(client.get(f'/api/projects/{self.projects["bob"]}/').status_code, 404)
+        self.assertEqual(client.get(other.upload.url.removeprefix('/label-studio')).status_code, 404)
+        self.assertEqual(client.get(own.upload.url.removeprefix('/label-studio')).status_code, 200)
+        path = f'/api/tasks/{own.task_id}/annotations/'
+        token = client.cookies['ailab_label_csrf'].value
+        response = client.post(path, '{"result": []}', content_type='application/json',
+                               HTTP_X_CSRFTOKEN=token, HTTP_ORIGIN='https://ai-lab.cs.psu.ac.th')
+        self.assertEqual(response.status_code, 201, response.content)
+        response = client.post(path, '{"result": []}', content_type='application/json',
+                               HTTP_X_CSRFTOKEN=token, HTTP_ORIGIN='https://attacker.invalid')
+        self.assertEqual(response.status_code, 403)
+        response = client.post(path, '{"result": []}', content_type='application/json')
+        self.assertEqual(response.status_code, 403)
+
+    @override_settings(FORCE_SCRIPT_NAME='/label-studio')
+    def test_media_backfill_is_dry_run_idempotent_and_preserves_annotations(self):
+        from tasks.models import Annotation
+        from .backfill_media import backfill
+        image = self.upload('alice')
+        task = image.task
+        task.data = {**task.data, 'image': 'http://172.25.2.135:8080/data/old.png', 'split': 'test'}
+        task.save(update_fields=['data'])
+        annotation = Annotation.objects.create(task=task, project=task.project,
+                                               completed_by=self.users['alice'], result=[])
+        original = dict(task.data)
+        self.assertEqual(backfill(), {'scanned': 1, 'changed': 1, 'applied': False})
+        task.refresh_from_db()
+        self.assertEqual(task.data, original)
+        self.assertEqual(backfill(apply=True)['changed'], 1)
+        task.refresh_from_db()
+        self.assertEqual(task.data, {**original, 'image': image.upload.url})
+        self.assertTrue(task.data['image'].startswith('/label-studio/'))
+        self.assertEqual(backfill(apply=True)['changed'], 0)
+        annotation.refresh_from_db()
+        self.assertEqual(annotation.result, [])
+
+    @override_settings(FORCE_SCRIPT_NAME='/label-studio',
+                       ALLOWED_HOSTS=['ai-lab.cs.psu.ac.th'],
+                       CSRF_TRUSTED_ORIGINS=['https://ai-lab.cs.psu.ac.th'],
+                       SESSION_COOKIE_SECURE=True, CSRF_COOKIE_SECURE=True,
+                       SESSION_COOKIE_PATH='/label-studio/', CSRF_COOKIE_PATH='/label-studio/')
+    def test_https_password_reset_login_and_account_change_keep_subpath(self):
+        import re
+        from django.core import mail
+        self.addCleanup(set_script_prefix, get_script_prefix())
+        set_script_prefix('/label-studio/')
+        user = self.users['alice']
+        user.set_password('Old-private-password-47923!')
+        user.save(update_fields=['password'])
+        client = Client(enforce_csrf_checks=True, SCRIPT_NAME='/label-studio',
+                        HTTP_HOST='ai-lab.cs.psu.ac.th', HTTP_X_FORWARDED_PROTO='https')
+
+        def post(path, data):
+            return client.post(path, data, HTTP_ORIGIN='https://ai-lab.cs.psu.ac.th',
+                               HTTP_X_CSRFTOKEN=client.cookies['ailab_label_csrf'].value)
+
+        client.get('/ailab/reset/')
+        self.assertEqual(post('/ailab/reset/', {'email': user.email}).url,
+                         '/label-studio/ailab/reset/done/')
+        self.assertEqual(len(mail.outbox), 1)
+        link = re.search(r'https://ai-lab\.cs\.psu\.ac\.th/label-studio/ailab/reset/confirm/[^\s]+',
+                         mail.outbox[0].body).group()
+        response = client.get(link.split('https://ai-lab.cs.psu.ac.th/label-studio')[1])
+        self.assertTrue(response.url.startswith('/label-studio/ailab/reset/confirm/'))
+        reset_path = response.url.removeprefix('/label-studio')
+        client.get(reset_path)
+        password = 'Reset-private-password-47923!'
+        self.assertEqual(post(reset_path, {'new_password1': password, 'new_password2': password}).url,
+                         '/label-studio/ailab/reset/complete/')
+        client.get('/user/login/')
+        response = post('/user/login/?next=https://attacker.invalid/',
+                        {'username': user.email, 'password': password})
+        self.assertEqual(response.url, '/label-studio/projects/')
+        self.assertTrue(response.cookies['ailab_label_session']['secure'])
+        self.assertEqual(response.cookies['ailab_label_session']['path'], '/label-studio/')
+        client.get('/ailab/account/')
+        response = post('/ailab/account/', {'old_password': password,
+                        'new_password1': password + '2', 'new_password2': password + '2'})
+        self.assertEqual(response.url, '/label-studio/ailab/account/?saved=1')
 
     def test_invalid_class_value_is_validation_error(self):
         from rest_framework.exceptions import ValidationError

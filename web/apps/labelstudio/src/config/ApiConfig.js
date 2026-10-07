@@ -1,8 +1,8 @@
 export const API_CONFIG = {
   gateway: `${window.APP_SETTINGS.hostname}/api`,
   endpoints: {
-    ailabOperations: { gateway: `${location.origin}/ailab`, path: '/projects/:pk/operations/' },
-    ailabOperationAction: { gateway: `${location.origin}/ailab`, path: '/projects/:pk/operations/:id/:action/', method: 'POST' },
+    ailabOperations: { gateway: `${window.APP_SETTINGS.hostname}/ailab`, path: '/projects/:pk/operations/' },
+    ailabOperationAction: { gateway: `${window.APP_SETTINGS.hostname}/ailab`, path: '/projects/:pk/operations/:id/:action/', method: 'POST' },
     // Users
     users: "/users",
     updateUser: "PATCH:/users/:pk",

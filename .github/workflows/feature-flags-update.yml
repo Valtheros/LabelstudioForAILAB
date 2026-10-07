@@ -24,6 +24,7 @@ env:
 jobs:
   commit-feature-flags:
     name: "Commit Feature Flags"
+    if: github.repository == 'HumanSignal/label-studio'
 
     runs-on: ubuntu-latest
     steps:

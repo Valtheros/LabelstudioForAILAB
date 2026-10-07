@@ -2,6 +2,7 @@
 import os
 from urllib.parse import urlsplit
 
+from django.core.exceptions import ImproperlyConfigured
 from core.settings.base import *  # noqa: F403,F401
 from core.utils.secret_key import generate_secret_key_if_missing
 
@@ -39,12 +40,21 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_DOMAIN = None
 SESSION_COOKIE_AGE = 86400
 CSRF_COOKIE_DOMAIN = None
-AILAB_URL = os.environ.get('AILAB_PUBLIC_URL', 'http://172.25.2.135').rstrip('/')
-LABEL_PUBLIC_URL = os.environ.get('LABEL_STUDIO_PUBLIC_URL', 'http://172.25.2.135:8080').rstrip('/')
+AILAB_URL = os.environ.get('AILAB_PUBLIC_URL', '').rstrip('/')
+LABEL_PUBLIC_URL = os.environ.get('LABEL_STUDIO_PUBLIC_URL', '').rstrip('/')
+for value in (AILAB_URL, LABEL_PUBLIC_URL):
+    parsed = urlsplit(value)
+    if parsed.scheme not in {'http', 'https'} or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise ImproperlyConfigured('Set valid AILAB_PUBLIC_URL and LABEL_STUDIO_PUBLIC_URL deployment URLs.')
+label_url = urlsplit(LABEL_PUBLIC_URL)
+HOSTNAME = FRONTEND_HOSTNAME = LABEL_PUBLIC_URL
+FORCE_SCRIPT_NAME = label_url.path.rstrip('/') or None
+SESSION_COOKIE_PATH = CSRF_COOKIE_PATH = (FORCE_SCRIPT_NAME or '') + '/'
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SESSION_COOKIE_SECURE = LABEL_PUBLIC_URL.startswith('https://')
 CSRF_COOKIE_SECURE = SESSION_COOKIE_SECURE
-CSRF_TRUSTED_ORIGINS = [LABEL_PUBLIC_URL]
-ALLOWED_HOSTS = [urlsplit(LABEL_PUBLIC_URL).hostname, 'label-studio', 'localhost', '127.0.0.1', 'testserver']
+CSRF_TRUSTED_ORIGINS = [f'{label_url.scheme}://{label_url.netloc}']
+ALLOWED_HOSTS = [label_url.hostname, 'label-studio', 'localhost', '127.0.0.1', 'testserver']
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = []
 CORS_ALLOWED_ORIGIN_REGEXES = []

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@humansignal/ui';
 import { useAPI } from '../../providers/ApiProvider';
+import { absoluteURL } from '../../utils/helpers';
 
 export function ImportStatus({ projectId }) {
   const api = useAPI();
@@ -43,6 +44,6 @@ export function ImportStatus({ projectId }) {
     <span role="status" className="min-w-0 break-words">{error || text}</span>
     {operation && (active || ['failed', 'cancelled'].includes(operation.status)) &&
       <Button size="small" look="outlined" disabled={updating} onClick={update}>{active ? 'Cancel import' : 'Retry import'}</Button>}
-    {operation?.status === 'completed' && <a href={`/projects/${projectId}/data`} data-external>View images</a>}
+    {operation?.status === 'completed' && <a href={absoluteURL(`/projects/${projectId}/data`)} data-external>View images</a>}
   </div>;
 }

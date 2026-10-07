@@ -31,20 +31,26 @@ Required environment names are `LABEL_STUDIO_DB`, `LABEL_STUDIO_DB_USER`,
 with AILAB for password reset, not account credentials. Never deploy
 `ailab.test_settings` or test credentials.
 
-The public proxy MUST deny `/ailab/internal` and `/ailab/internal/*`.
+The public proxy MUST deny `/label-studio/ailab/internal` and its children.
 Only the backend and CPU worker receive the bridge secret. No public port
-is published directly from the Label Studio container. LAN HTTP is for a
-trusted LAN only: use separate HTTPS hostnames and update public URLs and
-CSRF origins before exposing accounts outside the LAN.
+is published directly from the Label Studio container. Production uses
+`LABEL_STUDIO_HOST` and `LABEL_STUDIO_PUBLIC_URL` set to
+`https://ai-lab.cs.psu.ac.th/label-studio`, with `AILAB_PUBLIC_URL` set to
+`https://ai-lab.cs.psu.ac.th`. Caddy strips the subpath; Django uses
+FORCE_SCRIPT_NAME for generated links and path_info for ownership checks.
+Only the verified HTTPS proxy is trusted; internal bridge/health calls stay HTTP.
+Cookies are Secure and scoped to `/label-studio/`. CSRF trusts the HTTPS origin,
+not a URL containing a path. Existing users and labels do not require migration.
+After a database backup, run `python -m ailab.backfill_media --dry-run`, then
+`--apply` to update owned task image URLs; repeating the command is safe.
 
 The CPU worker consumes only `label_studio`, with concurrency one and a 1 GB
 memory limit. Label Studio is capped at 2 GB. GPU training uses its existing
 queue. PostgreSQL owns operation state; Redis loss is recoverable. A database
 advisory lock prevents duplicate execution even when an RQ job is lost.
 After three interrupted executions, automatic recovery stops until an explicit
-retry. Caddy authenticates ZIP requests via `/api/internal/upload-auth` and
-streams their bodies directly to the backend. The Next.js proxy must not handle
-these large bodies: its request cloning can otherwise buffer the whole upload.
+retry. Label Studio receives authenticated image/ZIP imports directly through Caddy;
+the Next.js proxy does not handle these large request bodies.
 
 ## Data and recovery
 

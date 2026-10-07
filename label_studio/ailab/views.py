@@ -12,7 +12,7 @@ from xml.etree import ElementTree as ET
 
 from django.conf import settings
 from django.contrib.auth import login
-from django.contrib.auth.views import PasswordResetView
+from django.contrib.auth.views import PasswordChangeView, PasswordResetView
 from django.contrib.auth.forms import AuthenticationForm, SetPasswordForm
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
@@ -21,6 +21,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import F
 from django.http import FileResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
@@ -58,8 +59,9 @@ def user_login(request):
             if identity:
                 login(request, user)
                 target = request.GET.get('next', '')
-                if not target.startswith('/projects/') or not url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}):
-                    target = '/projects/'
+                projects_url = reverse('projects:project-index')
+                if not target.startswith(projects_url) or not url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+                    target = projects_url
                 return HttpResponseRedirect(target)
             form.add_error(None, 'This account is not active. Open Annotation in AILAB.')
     return render(request, 'ailab/form.html', {'form': form, 'title': 'Sign in to Label Studio', 'login': True})
@@ -87,13 +89,18 @@ def activate(request):
                     identity.ticket_expires = None
                     identity.save()
                     login(request, user, backend='django.contrib.auth.backends.ModelBackend')
-                    return HttpResponseRedirect('/projects/')
+                    return HttpResponseRedirect(reverse('projects:project-index'))
             else:
                 context['error'] = 'This link expired or was already used. Request a new link from AILAB.'
     if 'form' not in context:
         from users.models import User
         context['form'] = SetPasswordForm(User())
     return render(request, 'ailab/form.html', context)
+
+
+class PasswordChange(PasswordChangeView):
+    def get_success_url(self):
+        return reverse('ailab_account') + '?saved=1'
 
 
 class PasswordReset(PasswordResetView):

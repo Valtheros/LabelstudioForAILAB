@@ -114,7 +114,7 @@ class Templates(TemplateListAPI):
             config = label_config(kind, [{'name': 'Class A', 'color': '#22c55e'}, {'name': 'Class B', 'color': '#3b82f6'}])
             config = f'<!-- AILAB task: {kind} -->\n' + config
             templates.append({'title': title, 'type': 'community', 'group': 'Computer Vision',
-                              'image': f'/static/templates/{image}.png', 'config': config, 'details': ''})
+                              'image': f'{settings.FORCE_SCRIPT_NAME or ""}/static/templates/{image}.png', 'config': config, 'details': ''})
         return Response({'templates': templates, 'groups': ['Computer Vision']})
 
 

@@ -5,6 +5,6 @@
 {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
 {% if request.GET.saved %}<p role="status">Password updated.</p>{% endif %}
 {% if form %}<form method="post">{% csrf_token %}{{ form.as_p }}{% if activation %}<input type="hidden" id="ticket" name="ticket" value="{{ ticket }}">{% endif %}<button type="submit">{% if login %}Sign in{% else %}Continue{% endif %}</button></form>{% endif %}
-<nav>{% if request.user.is_authenticated %}<a href="/projects/">Projects</a>{% else %}<a href="/user/login/">Sign in</a>{% endif %}<a href="{{ settings.AILAB_URL|default:'http://172.25.2.135' }}/annotate">Back to AILAB</a>{% if login %}<a href="/ailab/reset/">Forgot password?</a>{% endif %}</nav>
+<nav>{% if request.user.is_authenticated %}<a href="{% url 'projects:project-index' %}">Projects</a>{% else %}<a href="{% url 'ailab_login' %}">Sign in</a>{% endif %}<a href="{{ settings.AILAB_URL }}/annotate">Back to AILAB</a>{% if login %}<a href="{% url 'ailab_reset' %}">Forgot password?</a>{% endif %}</nav>
 {% if activation %}<script>const field=document.getElementById('ticket');if(location.hash)field.value=location.hash.slice(1);history.replaceState(null,'',location.pathname);</script>{% endif %}
 </main></body></html>

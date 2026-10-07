@@ -10,6 +10,7 @@ env:
 
 jobs:
   check_link:
+    if: github.repository == 'HumanSignal/label-studio'
     runs-on: ubuntu-latest
     steps:
       - name: Check if the invite link is valid

@@ -35,6 +35,7 @@ permissions:
   actions: write
 jobs:
   stale:
+    if: github.repository == 'HumanSignal/label-studio'
     runs-on: ubuntu-latest
 
     steps:

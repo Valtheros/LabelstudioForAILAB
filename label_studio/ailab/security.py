@@ -7,6 +7,7 @@ from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.http import JsonResponse, HttpResponseRedirect
+from django.urls import reverse
 
 
 def owns(user, project):
@@ -28,7 +29,7 @@ class PrivateWorkspaceMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        path = request.path
+        path = request.path_info
         if path.startswith(('/static/', '/react-app/', '/dm/', '/label-studio-frontend/', '/ailab/internal/')) or path in {
             '/health/', '/favicon.ico', '/user/login/', '/ailab/activate/', '/ailab/reset/', '/ailab/reset/done/',
             '/ailab/reset/complete/',
@@ -37,7 +38,7 @@ class PrivateWorkspaceMiddleware:
         if not request.user.is_authenticated:
             if path.startswith(('/api/', '/data/', '/storage-data/')):
                 return JsonResponse({'detail': 'Authentication required.'}, status=401)
-            return HttpResponseRedirect('/user/login/?' + urlencode({'next': request.get_full_path()}))
+            return HttpResponseRedirect(reverse('ailab_login') + '?' + urlencode({'next': request.get_full_path()}))
         try:
             identity = request.user.ailab_identity
             if not identity.activated or identity.disabled:
@@ -46,7 +47,7 @@ class PrivateWorkspaceMiddleware:
             return JsonResponse({'detail': 'Account is not active.'}, status=403)
         request.session['organization_pk'] = request.user.active_organization_id
         if path == '/':
-            return HttpResponseRedirect('/projects/')
+            return HttpResponseRedirect(reverse('projects:project-index'))
         if path in {'/projects/', '/api/templates/', '/api/projects/validate/', '/heidi-tips', '/heidi-tips/'}:
             return self.get_response(request)
         if path == '/api/projects/':
@@ -64,7 +65,7 @@ class PrivateWorkspaceMiddleware:
                     '/api/current-user/hotkeys/', '/api/version/', '/version/', '/feature-flags/'}:
             return self.get_response(request)
         if path.startswith('/user/account'):
-            return HttpResponseRedirect('/ailab/account/')
+            return HttpResponseRedirect(reverse('ailab_account'))
         if path == '/ailab/account/':
             return self.get_response(request)
         try:
@@ -88,7 +89,7 @@ class PrivateWorkspaceMiddleware:
         from tasks.models import Task, Annotation, AnnotationDraft, Prediction
         from data_manager.models import View
         from data_import.models import FileUpload
-        path = request.path
+        path = request.path_info
         match = re.fullmatch(r'/ailab/projects/(\d+)/operations/[0-9a-f-]{36}/(?:retry|cancel)/', path)
         if match and request.method == 'POST':
             return Project.objects.get(pk=match[1])

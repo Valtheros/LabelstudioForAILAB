@@ -10,7 +10,7 @@ import { useProject } from "../../providers/ProjectProvider";
 import { useContextProps, useParams } from "../../providers/RoutesProvider";
 import { addCrumb, deleteCrumb } from "../../services/breadrumbs";
 import { cn } from "../../utils/bem";
-import { isDefined } from "../../utils/helpers";
+import { absoluteURL, isDefined } from "../../utils/helpers";
 import { ImportModal } from "../CreateProject/Import/ImportModal";
 import { ExportPage } from "../ExportPage/ExportPage";
 import { APIConfig } from "./api-config";
@@ -133,7 +133,7 @@ export const DataManagerPage = ({ ...props }) => {
     });
 
     dataManager.on("exportClicked", () => {
-      window.location.assign(`/ailab/projects/${params?.id ?? project?.id}/send/`);
+      window.location.assign(absoluteURL(`/ailab/projects/${params?.id ?? project?.id}/send/`));
     });
 
     dataManager.on("error", (response) => {

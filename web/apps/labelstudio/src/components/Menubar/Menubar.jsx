@@ -181,7 +181,7 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
                 <Menu.Item
                   icon={<IconPersonInCircle />}
                   label="Account &amp; Settings"
-                  href="/ailab/account/"
+                  href={absoluteURL('/ailab/account/')}
                   data-external
                 />
                 {/* <Menu.Item label="Dark Mode"/> */}
