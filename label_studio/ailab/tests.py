@@ -149,6 +149,50 @@ class WorkspaceIsolationTests(TestCase):
         Identity.objects.filter(subject='alice').update(disabled=True)
         self.assertEqual(self.client.get(f'/api/projects/{self.projects["alice"]}/').status_code, 403)
 
+    def test_delete_account_is_owner_scoped_and_retryable(self):
+        from projects.models import Project
+        from tasks.models import Annotation, AnnotationDraft
+        from .models import Snapshot, SnapshotImage
+        image = self.upload('alice')
+        other = self.upload('bob')
+        Annotation.objects.create(task=image.task, project=image.workspace.project, completed_by=self.users['alice'], result=[])
+        AnnotationDraft.objects.create(task=image.task, user=self.users['alice'], result=[])
+        snapshot = Snapshot.objects.create(workspace=image.workspace, operation=uuid.uuid4(), revision=0)
+        SnapshotImage.objects.create(snapshot=snapshot, image=image, data={})
+        alice_file = image.upload.file.path
+        bob_file = other.upload.file.path
+        Identity.objects.filter(subject='alice').update(disabled=True)
+        response = self.bridge('alice', 'delete-account', {})
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertFalse(Identity.objects.filter(subject='alice').exists())
+        self.assertFalse(Project.objects.filter(pk=self.projects['alice']).exists())
+        self.assertFalse(os.path.exists(alice_file))
+        self.assertTrue(Identity.objects.filter(subject='bob').exists())
+        self.assertTrue(Project.objects.filter(pk=self.projects['bob']).exists())
+        self.assertTrue(os.path.exists(bob_file))
+        self.assertEqual(self.bridge('alice', 'delete-account', {}).status_code, 200)
+        self.assertEqual(self.client.post('/ailab/internal/delete-account/', '{}', content_type='application/json').status_code, 401)
+
+    def test_delete_account_rejects_shared_organization(self):
+        from organizations.models import OrganizationMember
+        org = self.users['alice'].active_organization
+        OrganizationMember.objects.get_or_create(organization=org, user=self.users['bob'])
+        response = self.bridge('alice', 'delete-account', {})
+        self.assertEqual(response.status_code, 400)
+        self.assertTrue(Identity.objects.filter(subject='alice', disabled=True).exists())
+        self.assertTrue(Workspace.objects.filter(project_id=self.projects['alice']).exists())
+
+    def test_delete_account_can_retry_after_interrupted_media_move(self):
+        from .models import Snapshot
+        image = self.upload('alice')
+        with patch.object(Snapshot.objects, 'filter', side_effect=RuntimeError('database unavailable')):
+            with self.assertRaises(RuntimeError):
+                self.bridge('alice', 'delete-account', {})
+        self.assertTrue(Identity.objects.filter(subject='alice', disabled=True).exists())
+        self.assertTrue(ImageRecord.objects.filter(pk=image.pk).exists())
+        self.assertEqual(self.bridge('alice', 'delete-account', {}).status_code, 200)
+        self.assertFalse(Identity.objects.filter(subject='alice').exists())
+
     def test_activation_keeps_authenticated_session_and_cannot_be_replayed(self):
         link = self.bridge('new-user', 'activate-link', {'email': 'new@example.com'}).json()['url']
         ticket = link.split('#')[1]

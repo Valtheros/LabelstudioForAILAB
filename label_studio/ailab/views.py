@@ -5,9 +5,11 @@ import math
 import os
 import re
 import secrets
+import shutil
 import tempfile
 import uuid
 from datetime import timedelta
+from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from django.conf import settings
@@ -201,6 +203,8 @@ def internal(request, action):
             raise ValueError('JSON object required.')
         if action in {'account', 'activate-link'}:
             return account_action(subject, payload, action)
+        if action == 'delete-account':
+            return delete_account(subject)
         identity = Identity.objects.select_related('user').get(subject=subject, activated=True, disabled=False)
         if action == 'image-upload':
             return image_upload(request, identity, payload)
@@ -239,6 +243,52 @@ def internal(request, action):
         return JsonResponse({'detail': 'This operation conflicts with existing data. Refresh and retry.'}, status=409)
     except (ValueError, TypeError, KeyError, StopIteration, SyntaxError, ValidationError, APIValidationError) as exc:
         return JsonResponse({'detail': str(exc)[:300]}, status=400)
+
+
+def delete_account(subject):
+    from organizations.models import Organization, OrganizationMember
+    from projects.models import Project
+    from jwt_auth.models import JWTSettings
+    from session_policy.models import SessionTimeoutPolicy
+    from users.models import User
+
+    trash = Path(settings.MEDIA_ROOT) / '.ailab-account-deletions' / hashlib.sha256(subject.encode()).hexdigest()
+    upload_root = Path(settings.MEDIA_ROOT) / settings.UPLOAD_DIR
+    # Disable independently so a failed or interrupted cleanup cannot expose moved media.
+    Identity.objects.filter(subject=subject).update(disabled=True, ticket_hash='', ticket_expires=None)
+    with transaction.atomic():
+        identity = Identity.objects.select_for_update().filter(subject=subject).first()
+        if identity:
+            user = identity.user
+            orgs = Organization.objects.filter(created_by=user)
+            if (OrganizationMember.objects.filter(organization__in=orgs).exclude(user=user).exists()
+                    or User.objects.filter(active_organization__in=orgs).exclude(pk=user.pk).exists()):
+                raise ValueError('Label Studio workspace has other members; resolve access before deleting this account.')
+            projects = Project.objects.filter(organization__in=orgs)
+            if Workspace.objects.filter(project__in=projects).exclude(identity=identity).exists() or Workspace.objects.filter(identity=identity).exclude(project__in=projects).exists():
+                raise ValueError('Label Studio project ownership is inconsistent; contact an administrator.')
+            trash.mkdir(parents=True, exist_ok=True)
+            for project_id in projects.values_list('id', flat=True):
+                source = upload_root / str(project_id)
+                target = trash / str(project_id)
+                if source.is_symlink() or target.is_symlink():
+                    raise ValueError('Unexpected symbolic link in Label Studio media.')
+                if source.exists():
+                    if target.exists():
+                        raise ValueError('Label Studio media cleanup is inconsistent; contact an administrator.')
+                    source.rename(target)
+            Snapshot.objects.filter(workspace__identity=identity).delete()
+            ImageRecord.objects.filter(workspace__identity=identity).delete()
+            Workspace.objects.filter(identity=identity).delete()
+            projects.delete()
+            JWTSettings.objects.filter(organization__in=orgs).delete()
+            SessionTimeoutPolicy.objects.filter(organization__in=orgs).delete()
+            orgs.delete()
+            identity.delete()
+            User.objects.filter(pk=user.pk).delete()
+    if trash.exists():
+        shutil.rmtree(trash)
+    return JsonResponse({'deleted': True})
 
 
 def account_action(subject, payload, action):
