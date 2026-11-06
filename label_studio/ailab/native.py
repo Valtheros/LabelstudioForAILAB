@@ -149,7 +149,7 @@ class ImportImages(APIView):
         if len(files) == 1 and files[0].name.lower().endswith('.zip'):
             result = gateway(request, pk, content=files[0])
         else:
-            with tempfile.TemporaryFile(dir=settings.FILE_UPLOAD_TEMP_DIR) as zipped:
+            with tempfile.TemporaryFile(dir=getattr(request, 'ailab_upload_directory', settings.FILE_UPLOAD_TEMP_DIR)) as zipped:
                 with zipfile.ZipFile(zipped, 'w') as archive:
                     for index, file in enumerate(files):
                         if not file.name.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):

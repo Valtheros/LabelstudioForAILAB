@@ -31,6 +31,8 @@ MIDDLEWARE = [m for m in MIDDLEWARE if m not in {
     'core.middleware.XApiKeySupportMiddleware',
 }]
 MIDDLEWARE.append('ailab.security.PrivateWorkspaceMiddleware')
+MIDDLEWARE.insert(MIDDLEWARE.index('django.contrib.auth.middleware.AuthenticationMiddleware') + 1,
+                  'ailab.storage.StorageUploadMiddleware')
 REST_FRAMEWORK['DEFAULT_AUTHENTICATION_CLASSES'] = ('rest_framework.authentication.SessionAuthentication',)
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_NAME = 'ailab_label_session'

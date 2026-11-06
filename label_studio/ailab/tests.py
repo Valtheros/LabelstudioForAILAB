@@ -13,6 +13,44 @@ from .models import Identity, Workspace, ImageRecord
 
 
 class WorkspaceIsolationTests(TestCase):
+    def test_quota_enabled_native_upload_closes_spools_and_keeps_csrf_and_ownership(self):
+        import tempfile
+        from pathlib import Path
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from .storage import UploadLease
+        events = []
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / '.registry.lock').touch()
+            def call(lease, action):
+                events.append(action)
+                if action == 'reserve':
+                    lease.directory.mkdir(parents=True)
+                else:
+                    self.assertFalse(lease.directory.exists())
+            with patch.dict(os.environ, {'STORAGE_ENFORCEMENT': 'true', 'STORAGE_LEASE_DIR': temporary}), \
+                 override_settings(BASE_DATA_DIR=temporary), patch.object(UploadLease, 'call', call), \
+                 patch('ailab.native.gateway', return_value={'operation': {'id': str(uuid.uuid4())}}) as gateway:
+                client = Client(enforce_csrf_checks=True)
+                client.force_login(self.users['alice'])
+                client.get('/ailab/account/')
+                token = client.cookies['ailab_label_csrf'].value
+                path = f'/api/projects/{self.projects["alice"]}/import'
+                file = lambda: SimpleUploadedFile('image.png', b'image', 'image/png')
+                rejected = client.post(path, {'file': file()})
+                self.assertEqual(rejected.status_code, 403)
+                gateway.assert_not_called()
+                response = client.post(path, {'file': file()}, HTTP_X_CSRFTOKEN=token)
+                self.assertEqual(response.status_code, 201, response.content)
+                gateway.assert_called_once()
+                self.assertTrue(gateway.call_args.kwargs['content'].closed)
+                before = len(events)
+                response = client.post(f'/api/projects/{self.projects["bob"]}/import', {'file': file()}, HTTP_X_CSRFTOKEN=token)
+                self.assertEqual(response.status_code, 404)
+                self.assertEqual(len(events), before)
+                self.assertEqual(events.count('reserve'), events.count('release'))
+                self.assertEqual(list(root.glob('label-*')), [])
+
     def test_account_has_navigation_back_to_label_projects(self):
         self.client.force_login(self.users['alice'])
         response = self.client.get('/ailab/account/')

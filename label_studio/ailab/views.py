@@ -319,6 +319,16 @@ def account_action(subject, payload, action):
 
 
 def image_upload(request, identity, payload):
+    from .storage import StorageError, UploadLease
+    workspace = workspace_for(identity, payload)
+    try:
+        with UploadLease(workspace, 301 * 1024**2) as lease:
+            return _image_upload(request, identity, payload, lease.directory)
+    except StorageError as exc:
+        return exc.response()
+
+
+def _image_upload(request, identity, payload, temporary_directory):
     from data_import.models import FileUpload
     from tasks.models import Task
     digest = payload.get('sha256', '')
@@ -329,7 +339,7 @@ def image_upload(request, identity, payload):
         existing = workspace.images.filter(sha256=digest).first()
         if existing:
             return JsonResponse({'id': existing.pk, 'duplicate': True})
-        with tempfile.TemporaryFile(dir=settings.FILE_UPLOAD_TEMP_DIR) as temporary:
+        with tempfile.TemporaryFile(dir=temporary_directory) as temporary:
             size, hasher = 0, hashlib.sha256()
             while chunk := request.read(1024 * 1024):
                 size += len(chunk)
